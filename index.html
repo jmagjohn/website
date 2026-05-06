@@ -60,26 +60,6 @@
 
     #page-2 { overflow: hidden; }
 
-    .next-btn {
-      font-family: 'Space Mono', monospace;
-      font-size: 12px;
-      letter-spacing: 4px;
-      text-transform: uppercase;
-      color: #fff;
-      background: var(--purple);
-      border: none;
-      border-radius: 100px;
-      padding: 18px 48px;
-      cursor: pointer;
-      transition: background 0.2s, box-shadow 0.2s, transform 0.2s;
-      -webkit-tap-highlight-color: transparent;
-    }
-
-    .next-btn:hover, .next-btn:active {
-      background: var(--purple-dark);
-      box-shadow: 0 0 36px rgba(168, 85, 247, 0.45);
-      transform: translateY(-2px);
-    }
 
     #back-btn {
       position: fixed;
@@ -105,6 +85,31 @@
       color: #fff;
       background: rgba(168, 85, 247, 0.2);
       border-color: rgba(168, 85, 247, 0.6);
+    }
+
+    #forward-btn {
+      position: fixed;
+      top: calc(22px + env(safe-area-inset-top, 0px));
+      right: calc(22px + env(safe-area-inset-right, 0px));
+      z-index: 100;
+      font-family: 'Space Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: #fff;
+      background: var(--purple);
+      border: none;
+      border-radius: 100px;
+      padding: 12px 24px;
+      cursor: pointer;
+      display: none;
+      transition: background 0.2s, box-shadow 0.2s;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    #forward-btn:hover, #forward-btn:active {
+      background: var(--purple-dark);
+      box-shadow: 0 0 24px rgba(168, 85, 247, 0.4);
     }
 
     /* ── Hero ──────────────────────────────────────────────────────── */
@@ -150,12 +155,6 @@
       line-height: 1.7;
       opacity: 0;
       animation: fadeUp 0.9s 0.45s cubic-bezier(0.16,1,0.3,1) forwards;
-    }
-
-    .hero .next-btn {
-      margin-top: 52px;
-      opacity: 0;
-      animation: fadeUp 0.9s 0.65s cubic-bezier(0.16,1,0.3,1) forwards;
     }
 
     /* ── Playground ────────────────────────────────────────────────── */
@@ -231,19 +230,6 @@
       color: #fff;
       background: var(--purple);
       border-color: var(--purple);
-    }
-
-    .playground .next-btn {
-      position: absolute;
-      bottom: calc(44px + env(safe-area-inset-bottom, 0px));
-      left: 50%;
-      transform: translateX(-50%);
-      white-space: nowrap;
-    }
-
-    .playground .next-btn:hover,
-    .playground .next-btn:active {
-      transform: translateX(-50%) translateY(-2px);
     }
 
     /* ── Works ─────────────────────────────────────────────────────── */
@@ -447,7 +433,8 @@
 <body>
 
 <canvas id="bg"></canvas>
-<button id="back-btn" onclick="goBack()">← back</button>
+<button id="back-btn"    onclick="goBack()">← back</button>
+<button id="forward-btn" onclick="goForward()">next →</button>
 
 <div id="pages-wrapper">
   <div id="pages">
@@ -457,7 +444,6 @@
         <div class="eyebrow">✦ &nbsp; things i made &nbsp; ✦</div>
         <h1 class="hero-name">John<br>Magness</h1>
         <p class="hero-sub">I build fun stuff on the internet.<br>No real reason. Just because it's cool.</p>
-        <button class="next-btn" onclick="goToPage(1)">next →</button>
       </section>
     </div>
 
@@ -472,7 +458,6 @@
           <button class="effect-btn"        data-effect="chemistry" onclick="switchEffect('chemistry')">⚗️ chemistry</button>
           <button class="effect-btn"        data-effect="snow"      onclick="switchEffect('snow')">❄️ snow</button>
         </div>
-        <button class="next-btn" onclick="goToPage(2)">see what i made →</button>
       </div>
     </div>
 
@@ -776,7 +761,8 @@
   function goToPage(index) {
     currentPage = index;
     document.getElementById('pages').style.transform = `translateX(-${index * 100}vw)`;
-    document.getElementById('back-btn').style.display = index > 0 ? 'block' : 'none';
+    document.getElementById('back-btn').style.display    = index > 0 ? 'block' : 'none';
+    document.getElementById('forward-btn').style.display = index < 2 ? 'block' : 'none';
     clearEffect();
     if (index === 1) {
       document.body.style.touchAction = 'none';
@@ -787,7 +773,11 @@
     }
   }
 
-  function goBack() { goToPage(currentPage - 1); }
+  function goBack()    { goToPage(currentPage - 1); }
+  function goForward() { goToPage(currentPage + 1); }
+
+  // Show forward button on initial load
+  document.getElementById('forward-btn').style.display = 'block';
 </script>
 
 <!-- Three.js animated background -->
