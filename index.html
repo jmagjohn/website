@@ -309,6 +309,15 @@
       0%, 100% { transform: scaleY(1); opacity: 0.5; }
       50%       { transform: scaleY(1.3); opacity: 1; }
     }
+
+    /* Fairy dust canvas must never block clicks/taps */
+    canvas:not(#bg) {
+      pointer-events: none !important;
+      position: fixed !important;
+      top: 0 !important;
+      left: 0 !important;
+      z-index: 9999 !important;
+    }
   </style>
 </head>
 <body>
@@ -368,6 +377,16 @@
 
   <footer>made by john magness · 2026</footer>
 </div>
+
+<!-- Fairy dust touch/cursor effect -->
+<script src="https://unpkg.com/cursor-effects@latest/dist/browser.js"></script>
+<script>
+  window.addEventListener('load', () => {
+    new cursoreffects.emojiCursor({
+      emoji: ['😄', '😜', '🤪', '😝', '🤡', '👾', '💀', '🫠', '🥴', '😵‍💫', '🤯', '👻'],
+    });
+  });
+</script>
 
 <!-- Three.js animated background -->
 <script type="importmap">
