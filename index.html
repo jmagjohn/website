@@ -133,10 +133,10 @@
     }
 
     .hero-name {
-      font-size: clamp(72px, 13vw, 150px);
+      font-size: clamp(44px, 13vw, 150px);
       font-weight: 800;
       line-height: 0.88;
-      letter-spacing: -4px;
+      letter-spacing: -2px;
       background: linear-gradient(140deg, #ffffff 0%, #d8b4fe 40%, #7c3aed 100%);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
@@ -634,10 +634,10 @@
     if (btn) btn.classList.add('active');
 
     if      (name === 'rainbow') currentEffect = makeRainbowTrail();
-    else if (name === 'fairy')   currentEffect = new cursoreffects.fairyDustCursor({ colors: ['#a855f7','#c026d3','#d8b4fe','#ffffff'] });
+    else if (name === 'fairy')   currentEffect = new cursoreffects.emojiCursor({ emoji: ['✨','💫','⭐','🌟','⚡','🔥','💥','🌠'] });
     else if (name === 'emoji')   currentEffect = new cursoreffects.emojiCursor({ emoji: ['😄','😜','🤪','😝','🤡','👾','💀','🫠','🥴','😵‍💫','🤯','👻'] });
     else if (name === 'bubble')  currentEffect = new cursoreffects.bubbleCursor();
-    else if (name === 'snow')    currentEffect = new cursoreffects.snowflakeCursor();
+    else if (name === 'snow')    currentEffect = new cursoreffects.emojiCursor({ emoji: ['❄️','🌨️','⛄','🌬️','🧊','☃️'] });
   }
 
   // ── Page navigation ─────────────────────────────────────────────────
