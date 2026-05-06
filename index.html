@@ -155,21 +155,10 @@
       animation: fadeUp 0.9s 0.45s cubic-bezier(0.16,1,0.3,1) forwards;
     }
 
-    .touch-hint {
-      margin-top: 20px;
-      font-family: 'Space Mono', monospace;
-      font-size: 11px;
-      letter-spacing: 3px;
-      text-transform: uppercase;
-      color: rgba(147,112,187,0.45);
-      opacity: 0;
-      animation: fadeUp 0.9s 0.6s cubic-bezier(0.16,1,0.3,1) forwards;
-    }
-
     .hero .next-btn {
       margin-top: 52px;
       opacity: 0;
-      animation: fadeUp 0.9s 0.75s cubic-bezier(0.16,1,0.3,1) forwards;
+      animation: fadeUp 0.9s 0.65s cubic-bezier(0.16,1,0.3,1) forwards;
     }
 
     /* ── Playground (page 2) ───────────────────────────────────────── */
@@ -451,12 +440,14 @@
       to   { opacity: 1; transform: translateY(0); }
     }
 
-    /* Cursor effect canvas must never block taps */
+    /* Cursor-effects canvases must never block taps */
     canvas:not(#bg) {
       pointer-events: none !important;
       position: fixed !important;
       top: 0 !important;
       left: 0 !important;
+      width: 100vw !important;
+      height: 100vh !important;
       z-index: 9999 !important;
     }
   </style>
@@ -465,7 +456,6 @@
 
 <canvas id="bg"></canvas>
 
-<!-- Persistent back button, shown on pages 2 & 3 -->
 <button id="back-btn" onclick="goBack()">← back</button>
 
 <div id="pages-wrapper">
@@ -477,7 +467,6 @@
         <div class="eyebrow">✦ &nbsp; things i made &nbsp; ✦</div>
         <h1 class="hero-name">John<br>Magness</h1>
         <p class="hero-sub">I build fun stuff on the internet.<br>No real reason. Just because it's cool.</p>
-        <p class="touch-hint">drag your finger across the screen to see the emojis trail</p>
         <button class="next-btn" onclick="goToPage(1)">next →</button>
       </section>
     </div>
@@ -489,11 +478,11 @@
         <div class="play-title">touch<br>me</div>
         <p class="play-sub">drag your finger anywhere on this screen</p>
         <div class="effect-picker">
-          <button class="effect-btn active" data-effect="rainbow"  onclick="switchEffect('rainbow')">🌈 rainbow</button>
-          <button class="effect-btn"        data-effect="fairy"    onclick="switchEffect('fairy')">✨ sparkle</button>
-          <button class="effect-btn"        data-effect="emoji"    onclick="switchEffect('emoji')">😜 emoji</button>
-          <button class="effect-btn"        data-effect="bubble"   onclick="switchEffect('bubble')">🫧 bubbles</button>
-          <button class="effect-btn"        data-effect="snow"     onclick="switchEffect('snow')">❄️ snow</button>
+          <button class="effect-btn active" data-effect="rainbow" onclick="switchEffect('rainbow')">🌈 rainbow</button>
+          <button class="effect-btn"        data-effect="fairy"   onclick="switchEffect('fairy')">✨ sparkle</button>
+          <button class="effect-btn"        data-effect="emoji"   onclick="switchEffect('emoji')">😜 emoji</button>
+          <button class="effect-btn"        data-effect="bubble"  onclick="switchEffect('bubble')">🫧 bubbles</button>
+          <button class="effect-btn"        data-effect="snow"    onclick="switchEffect('snow')">❄️ snow</button>
         </div>
         <button class="next-btn" onclick="goToPage(2)">see what i made →</button>
       </div>
@@ -540,16 +529,86 @@
   </div>
 </div>
 
-<!-- Cursor effects library -->
+<!-- Cursor effects library (sparkle / emoji / bubbles / snow) -->
 <script src="https://unpkg.com/cursor-effects@latest/dist/browser.js"></script>
 <script>
   let currentPage = 0;
   let currentEffect = null;
+  let currentEffectName = null;
 
-  // ── Touch-to-mouse bridge so cursor-effects work on mobile ──────────
-  // The library listens for mousemove; we mirror every touchmove as one.
+  // ── Custom rainbow trail ────────────────────────────────────────────
+  // Implemented from scratch so touchstart/touchend properly start/stop
+  // drawing, preventing the "connects last two taps" artefact.
+  function makeRainbowTrail() {
+    const cvs = document.createElement('canvas');
+    cvs.width  = window.innerWidth;
+    cvs.height = window.innerHeight;
+    document.body.appendChild(cvs);
+    const ctx = cvs.getContext('2d');
+
+    let down = false;
+    let pts  = [];
+    let hue  = 0;
+    let raf;
+
+    function start(x, y) { down = true;  pts = [{ x, y, h: hue }]; }
+    function move(x, y)  { if (down) { pts.push({ x, y, h: hue }); hue = (hue + 4) % 360; } }
+    function end()        { down = false; pts = []; }
+
+    function loop() {
+      ctx.clearRect(0, 0, cvs.width, cvs.height);
+      for (let i = 1; i < pts.length; i++) {
+        ctx.beginPath();
+        ctx.moveTo(pts[i - 1].x, pts[i - 1].y);
+        ctx.lineTo(pts[i].x,     pts[i].y);
+        ctx.strokeStyle = `hsl(${pts[i - 1].h},100%,60%)`;
+        ctx.lineWidth   = 5;
+        ctx.lineCap     = 'round';
+        ctx.lineJoin    = 'round';
+        ctx.stroke();
+      }
+      // keep the trail from growing infinitely long
+      if (pts.length > 120) pts.shift();
+      raf = requestAnimationFrame(loop);
+    }
+
+    // Mouse
+    const onMM = e => move(e.clientX, e.clientY);
+    const onMD = e => start(e.clientX, e.clientY);
+    const onMU = ()  => end();
+    // Touch — direct listeners, not bridged
+    const onTS = e => { const t = e.touches[0]; start(t.clientX, t.clientY); };
+    const onTM = e => { const t = e.touches[0]; move(t.clientX,  t.clientY); };
+    const onTE = ()  => end();
+
+    document.addEventListener('mousemove',  onMM);
+    document.addEventListener('mousedown',  onMD);
+    document.addEventListener('mouseup',    onMU);
+    document.addEventListener('touchstart', onTS, { passive: true });
+    document.addEventListener('touchmove',  onTM, { passive: true });
+    document.addEventListener('touchend',   onTE, { passive: true });
+
+    loop();
+
+    return {
+      destroy() {
+        cancelAnimationFrame(raf);
+        cvs.remove();
+        document.removeEventListener('mousemove',  onMM);
+        document.removeEventListener('mousedown',  onMD);
+        document.removeEventListener('mouseup',    onMU);
+        document.removeEventListener('touchstart', onTS);
+        document.removeEventListener('touchmove',  onTM);
+        document.removeEventListener('touchend',   onTE);
+      }
+    };
+  }
+
+  // ── Touch-to-mouse bridge for cursor-effects library ────────────────
+  // Only fires when on the playground page AND not using custom rainbow.
   ['touchstart', 'touchmove'].forEach(type => {
     document.addEventListener(type, e => {
+      if (currentPage !== 1 || currentEffectName === 'rainbow') return;
       const t = e.touches[0];
       if (!t) return;
       document.dispatchEvent(new MouseEvent('mousemove', {
@@ -563,15 +622,18 @@
     if (currentEffect && typeof currentEffect.destroy === 'function') currentEffect.destroy();
     document.querySelectorAll('canvas:not(#bg)').forEach(c => c.remove());
     currentEffect = null;
+    currentEffectName = null;
   }
 
   function switchEffect(name) {
     clearEffect();
+    currentEffectName = name;
+
     document.querySelectorAll('.effect-btn').forEach(b => b.classList.remove('active'));
     const btn = document.querySelector(`.effect-btn[data-effect="${name}"]`);
     if (btn) btn.classList.add('active');
 
-    if      (name === 'rainbow') currentEffect = new cursoreffects.rainbowCursor();
+    if      (name === 'rainbow') currentEffect = makeRainbowTrail();
     else if (name === 'fairy')   currentEffect = new cursoreffects.fairyDustCursor({ colors: ['#a855f7','#c026d3','#d8b4fe','#ffffff'] });
     else if (name === 'emoji')   currentEffect = new cursoreffects.emojiCursor({ emoji: ['😄','😜','🤪','😝','🤡','👾','💀','🫠','🥴','😵‍💫','🤯','👻'] });
     else if (name === 'bubble')  currentEffect = new cursoreffects.bubbleCursor();
@@ -586,32 +648,16 @@
 
     clearEffect();
 
-    if (index === 0) {
-      document.body.style.touchAction = '';
-      currentEffect = new cursoreffects.emojiCursor({
-        emoji: ['😄','😜','🤪','😝','🤡','👾','💀','🫠','🥴','😵‍💫','🤯','👻'],
-      });
-    } else if (index === 1) {
+    if (index === 1) {
       document.body.style.touchAction = 'none';
-      // restore whichever effect button is marked active
       const active = document.querySelector('.effect-btn.active');
-      const name = active ? active.dataset.effect : 'rainbow';
-      switchEffect(name);
+      switchEffect(active ? active.dataset.effect : 'rainbow');
     } else {
       document.body.style.touchAction = '';
     }
   }
 
-  function goBack() {
-    goToPage(currentPage - 1);
-  }
-
-  // ── Init ────────────────────────────────────────────────────────────
-  window.addEventListener('load', () => {
-    currentEffect = new cursoreffects.emojiCursor({
-      emoji: ['😄','😜','🤪','😝','🤡','👾','💀','🫠','🥴','😵‍💫','🤯','👻'],
-    });
-  });
+  function goBack() { goToPage(currentPage - 1); }
 </script>
 
 <!-- Three.js animated background -->
@@ -668,15 +714,12 @@ function animateWave({ pos, base }, time, speed, freq, amp) {
 function animate(t) {
   requestAnimationFrame(animate);
   const time = t * 0.001;
-
   animateWave(wave1, time, 0.7, 0.45, 0.55);
   animateWave(wave2, time, 0.5, 0.35, 0.7);
   animateWave(wave3, time, 0.9, 0.55, 0.4);
-
   camera.position.x = Math.sin(time * 0.12) * 2.5;
   camera.position.z = 16 + Math.cos(time * 0.08) * 1.5;
   camera.lookAt(0, 0, 0);
-
   renderer.render(scene, camera);
 }
 
@@ -692,27 +735,15 @@ window.addEventListener('resize', () => {
 <!-- Game of Life grid art -->
 <script>
 const ALIVE_PATTERN = [
-  [0,2],[0,3],
-  [1,1],[1,4],
-  [2,0],[2,5],
-  [3,0],[3,3],[3,5],
-  [4,0],[4,3],[4,5],
-  [5,1],[5,4],
-  [6,2],[6,3],
-  [2,8],[2,9],[2,10],
-  [3,8],[3,10],
-  [4,9],
-  [6,8],[6,9],[6,10],
-  [7,8],[7,10],
-  [8,9],
-  [1,13],[2,13],[3,13],[4,13],
-  [2,12],[2,14],
+  [0,2],[0,3],[1,1],[1,4],[2,0],[2,5],[3,0],[3,3],[3,5],
+  [4,0],[4,3],[4,5],[5,1],[5,4],[6,2],[6,3],
+  [2,8],[2,9],[2,10],[3,8],[3,10],[4,9],
+  [6,8],[6,9],[6,10],[7,8],[7,10],[8,9],
+  [1,13],[2,13],[3,13],[4,13],[2,12],[2,14],
 ];
-
 const grid = document.getElementById('gol-grid');
 const COLS = 16, ROWS = 10;
 const aliveCells = new Set(ALIVE_PATTERN.map(([r,c]) => r * COLS + c));
-
 for (let r = 0; r < ROWS; r++) {
   for (let c = 0; c < COLS; c++) {
     const cell = document.createElement('div');
