@@ -60,31 +60,54 @@
       overflow-x: hidden;
     }
 
-    /* Page 2 is locked — no scroll, no default touch drag */
-    #page-2 {
-      overflow: hidden;
-    }
+    #page-2 { overflow: hidden; }
 
-    /* ── Next button ───────────────────────────────────────────────── */
+    /* ── Shared nav buttons ────────────────────────────────────────── */
     .next-btn {
       font-family: 'Space Mono', monospace;
       font-size: 12px;
       letter-spacing: 4px;
       text-transform: uppercase;
-      color: var(--purple);
-      background: transparent;
-      border: 1px solid rgba(168, 85, 247, 0.35);
+      color: #fff;
+      background: var(--purple);
+      border: none;
       border-radius: 100px;
       padding: 18px 48px;
       cursor: pointer;
-      transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
+      transition: background 0.2s, box-shadow 0.2s, transform 0.2s;
       -webkit-tap-highlight-color: transparent;
     }
 
     .next-btn:hover, .next-btn:active {
-      border-color: rgba(168, 85, 247, 0.8);
-      box-shadow: 0 0 30px rgba(168, 85, 247, 0.2);
+      background: var(--purple-dark);
+      box-shadow: 0 0 36px rgba(168, 85, 247, 0.45);
       transform: translateY(-2px);
+    }
+
+    #back-btn {
+      position: fixed;
+      top: 22px;
+      left: 22px;
+      z-index: 100;
+      font-family: 'Space Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: rgba(168, 85, 247, 0.7);
+      background: rgba(168, 85, 247, 0.08);
+      border: 1px solid rgba(168, 85, 247, 0.25);
+      border-radius: 100px;
+      padding: 12px 24px;
+      cursor: pointer;
+      display: none;
+      transition: color 0.2s, background 0.2s, border-color 0.2s;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    #back-btn:hover, #back-btn:active {
+      color: #fff;
+      background: rgba(168, 85, 247, 0.2);
+      border-color: rgba(168, 85, 247, 0.6);
     }
 
     /* ── Hero (page 1) ─────────────────────────────────────────────── */
@@ -158,8 +181,8 @@
       align-items: center;
       justify-content: center;
       text-align: center;
-      padding: 60px 24px;
-      gap: 16px;
+      padding: 100px 24px 120px;
+      gap: 14px;
       position: relative;
     }
 
@@ -186,14 +209,43 @@
       font-size: 15px;
       color: var(--text-dim);
       line-height: 1.7;
-      max-width: 340px;
+      max-width: 300px;
     }
 
-    .play-emoji-row {
-      font-size: 32px;
-      letter-spacing: 6px;
-      opacity: 0.6;
-      margin: 8px 0;
+    /* ── Effect picker ─────────────────────────────────────────────── */
+    .effect-picker {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px;
+      margin-top: 8px;
+    }
+
+    .effect-btn {
+      font-family: 'Space Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: rgba(147, 112, 187, 0.7);
+      background: rgba(168, 85, 247, 0.06);
+      border: 1px solid rgba(168, 85, 247, 0.2);
+      border-radius: 100px;
+      padding: 10px 20px;
+      cursor: pointer;
+      transition: all 0.2s;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .effect-btn:hover, .effect-btn:active {
+      color: #fff;
+      background: rgba(168, 85, 247, 0.15);
+      border-color: rgba(168, 85, 247, 0.5);
+    }
+
+    .effect-btn.active {
+      color: #fff;
+      background: var(--purple);
+      border-color: var(--purple);
     }
 
     .playground .next-btn {
@@ -201,6 +253,7 @@
       bottom: 44px;
       left: 50%;
       transform: translateX(-50%);
+      white-space: nowrap;
     }
 
     .playground .next-btn:hover,
@@ -412,6 +465,9 @@
 
 <canvas id="bg"></canvas>
 
+<!-- Persistent back button, shown on pages 2 & 3 -->
+<button id="back-btn" onclick="goBack()">← back</button>
+
 <div id="pages-wrapper">
   <div id="pages">
 
@@ -431,8 +487,14 @@
       <div class="playground">
         <div class="play-eyebrow">✦ &nbsp; drag to play &nbsp; ✦</div>
         <div class="play-title">touch<br>me</div>
-        <div class="play-emoji-row">🌈 ✨ 🎨</div>
         <p class="play-sub">drag your finger anywhere on this screen</p>
+        <div class="effect-picker">
+          <button class="effect-btn active" data-effect="rainbow"  onclick="switchEffect('rainbow')">🌈 rainbow</button>
+          <button class="effect-btn"        data-effect="fairy"    onclick="switchEffect('fairy')">✨ sparkle</button>
+          <button class="effect-btn"        data-effect="emoji"    onclick="switchEffect('emoji')">😜 emoji</button>
+          <button class="effect-btn"        data-effect="bubble"   onclick="switchEffect('bubble')">🫧 bubbles</button>
+          <button class="effect-btn"        data-effect="snow"     onclick="switchEffect('snow')">❄️ snow</button>
+        </div>
         <button class="next-btn" onclick="goToPage(2)">see what i made →</button>
       </div>
     </div>
@@ -481,37 +543,73 @@
 <!-- Cursor effects library -->
 <script src="https://unpkg.com/cursor-effects@latest/dist/browser.js"></script>
 <script>
+  let currentPage = 0;
   let currentEffect = null;
 
+  // ── Touch-to-mouse bridge so cursor-effects work on mobile ──────────
+  // The library listens for mousemove; we mirror every touchmove as one.
+  ['touchstart', 'touchmove'].forEach(type => {
+    document.addEventListener(type, e => {
+      const t = e.touches[0];
+      if (!t) return;
+      document.dispatchEvent(new MouseEvent('mousemove', {
+        bubbles: true, clientX: t.clientX, clientY: t.clientY,
+      }));
+    }, { passive: true });
+  });
+
+  // ── Effect management ───────────────────────────────────────────────
   function clearEffect() {
-    if (currentEffect && typeof currentEffect.destroy === 'function') {
-      currentEffect.destroy();
-    }
+    if (currentEffect && typeof currentEffect.destroy === 'function') currentEffect.destroy();
     document.querySelectorAll('canvas:not(#bg)').forEach(c => c.remove());
     currentEffect = null;
   }
 
+  function switchEffect(name) {
+    clearEffect();
+    document.querySelectorAll('.effect-btn').forEach(b => b.classList.remove('active'));
+    const btn = document.querySelector(`.effect-btn[data-effect="${name}"]`);
+    if (btn) btn.classList.add('active');
+
+    if      (name === 'rainbow') currentEffect = new cursoreffects.rainbowCursor();
+    else if (name === 'fairy')   currentEffect = new cursoreffects.fairyDustCursor({ colors: ['#a855f7','#c026d3','#d8b4fe','#ffffff'] });
+    else if (name === 'emoji')   currentEffect = new cursoreffects.emojiCursor({ emoji: ['😄','😜','🤪','😝','🤡','👾','💀','🫠','🥴','😵‍💫','🤯','👻'] });
+    else if (name === 'bubble')  currentEffect = new cursoreffects.bubbleCursor();
+    else if (name === 'snow')    currentEffect = new cursoreffects.snowflakeCursor();
+  }
+
+  // ── Page navigation ─────────────────────────────────────────────────
   function goToPage(index) {
+    currentPage = index;
     document.getElementById('pages').style.transform = `translateX(-${index * 100}vw)`;
+    document.getElementById('back-btn').style.display = index > 0 ? 'block' : 'none';
 
     clearEffect();
 
     if (index === 0) {
-      currentEffect = new cursoreffects.emojiCursor({
-        emoji: ['😄', '😜', '🤪', '😝', '🤡', '👾', '💀', '🫠', '🥴', '😵‍💫', '🤯', '👻'],
-      });
       document.body.style.touchAction = '';
+      currentEffect = new cursoreffects.emojiCursor({
+        emoji: ['😄','😜','🤪','😝','🤡','👾','💀','🫠','🥴','😵‍💫','🤯','👻'],
+      });
     } else if (index === 1) {
-      currentEffect = new cursoreffects.rainbowCursor();
       document.body.style.touchAction = 'none';
+      // restore whichever effect button is marked active
+      const active = document.querySelector('.effect-btn.active');
+      const name = active ? active.dataset.effect : 'rainbow';
+      switchEffect(name);
     } else {
       document.body.style.touchAction = '';
     }
   }
 
+  function goBack() {
+    goToPage(currentPage - 1);
+  }
+
+  // ── Init ────────────────────────────────────────────────────────────
   window.addEventListener('load', () => {
     currentEffect = new cursoreffects.emojiCursor({
-      emoji: ['😄', '😜', '🤪', '😝', '🤡', '👾', '💀', '🫠', '🥴', '😵‍💫', '🤯', '👻'],
+      emoji: ['😄','😜','🤪','😝','🤡','👾','💀','🫠','🥴','😵‍💫','🤯','👻'],
     });
   });
 </script>
