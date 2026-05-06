@@ -540,34 +540,47 @@
 
   // ── Custom rainbow trail ────────────────────────────────────────────
   function makeRainbowTrail() {
-    const cvs = makeCanvas();
-    const ctx = cvs.getContext('2d');
-    let down = false, pts = [], hue = 0, raf;
-
-    const unbind = bindTouchDrag({
-      onDown: (x, y) => { down = true;  pts = [{ x, y, h: hue }]; },
-      onMove: (x, y) => { if (down) { pts.push({ x, y, h: hue }); hue = (hue + 4) % 360; } },
-      onUp:   ()     => { down = false; pts = []; },
-    });
-
-    function loop() {
-      ctx.clearRect(0, 0, cvs.width, cvs.height);
-      for (let i = 1; i < pts.length; i++) {
-        ctx.beginPath();
-        ctx.moveTo(pts[i-1].x, pts[i-1].y);
-        ctx.lineTo(pts[i].x,   pts[i].y);
-        ctx.strokeStyle = `hsl(${pts[i-1].h},100%,60%)`;
-        ctx.lineWidth = 5;
-        ctx.lineCap = ctx.lineJoin = 'round';
-        ctx.stroke();
+      const cvs = makeCanvas();
+      const ctx = cvs.getContext('2d');
+      let down = false, hue = 0, raf;
+      // Each point now has a birth time
+      let pts = [];
+      const TRAIL_LIFETIME = 1500; // ms before fully faded
+  
+      const unbind = bindTouchDrag({
+        onDown: (x, y) => { down = true;  pts.push({ x, y, h: hue, t: performance.now() }); },
+        onMove: (x, y) => { if (down) { pts.push({ x, y, h: hue, t: performance.now() }); hue = (hue + 4) % 360; } },
+        onUp:   ()     => { down = false; },
+      });
+  
+      function loop() {
+        const now = performance.now();
+        // Remove points that have fully faded
+        while (pts.length && now - pts[0].t > TRAIL_LIFETIME) pts.shift();
+  
+        ctx.clearRect(0, 0, cvs.width, cvs.height);
+        for (let i = 1; i < pts.length; i++) {
+          // Only draw between consecutive points that were part of the same stroke
+          // (gap > 100ms means finger was lifted between them)
+          if (pts[i].t - pts[i-1].t > 100) continue;
+  
+          const age = now - pts[i].t;
+          const alpha = Math.max(0, 1 - age / TRAIL_LIFETIME);
+  
+          ctx.beginPath();
+          ctx.moveTo(pts[i-1].x, pts[i-1].y);
+          ctx.lineTo(pts[i].x,   pts[i].y);
+          ctx.strokeStyle = `hsla(${pts[i-1].h},100%,60%,${alpha})`;
+          ctx.lineWidth = 5;
+          ctx.lineCap = ctx.lineJoin = 'round';
+          ctx.stroke();
+        }
+        raf = requestAnimationFrame(loop);
       }
-      if (pts.length > 120) pts.shift();
-      raf = requestAnimationFrame(loop);
+      loop();
+      return { destroy() { cancelAnimationFrame(raf); cvs.remove(); unbind(); } };
     }
-    loop();
-    return { destroy() { cancelAnimationFrame(raf); cvs.remove(); unbind(); } };
-  }
-
+  
   // ── Custom snow — flakes fall from top at drag X position ──────────
   // While dragging at (x, y), flakes spawn at (x, 0) and fall downward.
   function makeSnowEffect() {
