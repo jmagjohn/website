@@ -327,6 +327,25 @@
       justify-content: center;
     }
 
+    .preview-gravity {
+      background: radial-gradient(ellipse at 50% 60%, #0d0030 0%, #03000a 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    .gravity-canvas-wrap {
+      position: relative;
+      width: 100%;
+      height: 100%;
+    }
+
+    #gravity-preview-canvas {
+      width: 100%;
+      height: 100%;
+    }
+
     .gol-grid {
       display: grid;
       grid-template-columns: repeat(16, 10px);
@@ -482,6 +501,17 @@
             <div class="card-body">
               <div class="card-title">Game of Life</div>
               <div class="card-desc">This is a silly game based on Conways Game of Life. Draw cells, give them food, bomb them, and change the UI theme.</div>
+              <div class="card-cta">open app <span>→</span></div>
+            </div>
+          </a>
+
+          <a class="card" href="https://gravity-sim-khaki.vercel.app" target="_blank" rel="noopener">
+            <div class="card-preview preview-gravity">
+              <canvas id="gravity-preview-canvas"></canvas>
+            </div>
+            <div class="card-body">
+              <div class="card-title">Gravity Sim</div>
+              <div class="card-desc">N-body gravity simulation with spacetime warp visualization. Hold to charge mass, release to drop a new body. Watch planets orbit, collide, and merge.</div>
               <div class="card-cta">open app <span>→</span></div>
             </div>
           </a>
@@ -857,6 +887,118 @@ window.addEventListener('resize', () => {
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
+</script>
+
+<!-- Gravity sim card preview -->
+<script>
+(function() {
+  const cvs = document.getElementById('gravity-preview-canvas');
+  if (!cvs) return;
+  const ctx = cvs.getContext('2d');
+  let W, H;
+  function resize() {
+    const rect = cvs.parentElement.getBoundingClientRect();
+    W = cvs.width  = rect.width  || 320;
+    H = cvs.height = rect.height || 200;
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  const G = 1, SOFT = 800, TRAIL = 0.14, WARP = 18000;
+  const bodies = [
+    { x: 0, y: 0, vx: 0,    vy: 0,    mass: 500 },
+    { x: 90, y: 0, vx: 0,   vy: -2.4, mass: 18  },
+    { x: -65, y: 0, vx: 0,  vy:  2.9, mass: 10  },
+    { x: 130, y: -20, vx: 0.5, vy: -1.8, mass: 8 },
+  ];
+
+  function massToColor(m) {
+    if (m < 40)  return [160,200,255];
+    if (m < 120) return [230,240,255];
+    if (m < 300) return [255,210,80];
+    if (m < 600) return [255,140,40];
+    return [220,60,40];
+  }
+
+  function step() {
+    const n = bodies.length;
+    const ax = new Array(n).fill(0), ay = new Array(n).fill(0);
+    for (let i = 0; i < n; i++) {
+      for (let j = i+1; j < n; j++) {
+        const dx = bodies[j].x - bodies[i].x, dy = bodies[j].y - bodies[i].y;
+        const f = G * bodies[i].mass * bodies[j].mass / (dx*dx + dy*dy + SOFT);
+        const d = Math.sqrt(dx*dx + dy*dy) || 1;
+        const fx = f * dx/d, fy = f * dy/d;
+        ax[i] += fx/bodies[i].mass; ay[i] += fy/bodies[i].mass;
+        ax[j] -= fx/bodies[j].mass; ay[j] -= fy/bodies[j].mass;
+      }
+    }
+    for (let i = 0; i < n; i++) {
+      bodies[i].vx += ax[i]; bodies[i].vy += ay[i];
+      bodies[i].x  += bodies[i].vx; bodies[i].y  += bodies[i].vy;
+    }
+  }
+
+  function drawGrid(cx, cy) {
+    const step = 30, cols = Math.ceil(W/step)+2, rows = Math.ceil(H/step)+2;
+    const pts = [];
+    for (let r = 0; r <= rows; r++) {
+      pts[r] = [];
+      for (let c = 0; c <= cols; c++) {
+        const bx = (c-0.5)*step - (W/2 - cx), by = (r-0.5)*step - (H/2 - cy);
+        let dx = 0, dy = 0;
+        for (const b of bodies) {
+          const ex = (b.x + cx) - bx, ey = (b.y + cy) - by;
+          const d2 = ex*ex + ey*ey + SOFT*2;
+          const str = Math.min(20, b.mass * WARP * 0.4 / (d2 * Math.sqrt(d2)));
+          dx += ex*str; dy += ey*str;
+        }
+        const dLen = Math.sqrt(dx*dx+dy*dy);
+        if (dLen > 20) { dx=dx/dLen*20; dy=dy/dLen*20; }
+        pts[r][c] = { x: bx+dx, y: by+dy };
+      }
+    }
+    ctx.strokeStyle = 'rgba(120,50,220,0.18)';
+    ctx.lineWidth = 0.6;
+    ctx.beginPath();
+    for (let r = 0; r <= rows; r++) {
+      ctx.moveTo(pts[r][0].x, pts[r][0].y);
+      for (let c = 1; c <= cols; c++) ctx.lineTo(pts[r][c].x, pts[r][c].y);
+    }
+    for (let c = 0; c <= cols; c++) {
+      ctx.moveTo(pts[0][c].x, pts[0][c].y);
+      for (let r = 1; r <= rows; r++) ctx.lineTo(pts[r][c].x, pts[r][c].y);
+    }
+    ctx.stroke();
+  }
+
+  function frame() {
+    requestAnimationFrame(frame);
+    if (!document.contains(cvs)) return;
+    const cx = W/2, cy = H/2;
+    ctx.fillStyle = `rgba(3,0,10,${TRAIL})`;
+    ctx.fillRect(0, 0, W, H);
+    step();
+    drawGrid(cx, cy);
+    for (const b of bodies) {
+      const [r,g,bl] = massToColor(b.mass);
+      const rad = Math.cbrt(b.mass) * 1.8;
+      const bx = b.x + cx, by = b.y + cy;
+      const glow = ctx.createRadialGradient(bx,by,0,bx,by,rad*3);
+      glow.addColorStop(0, `rgba(${r},${g},${bl},0.5)`);
+      glow.addColorStop(1, `rgba(${r},${g},${bl},0)`);
+      ctx.beginPath(); ctx.arc(bx,by,rad*3,0,Math.PI*2);
+      ctx.fillStyle = glow; ctx.fill();
+      const core = ctx.createRadialGradient(bx-rad*0.3,by-rad*0.3,0,bx,by,rad);
+      core.addColorStop(0, 'rgba(255,255,255,0.95)');
+      core.addColorStop(0.4, `rgba(${r},${g},${bl},0.9)`);
+      core.addColorStop(1, `rgba(${Math.round(r*0.6)},${Math.round(g*0.6)},${Math.round(bl*0.6)},0.8)`);
+      ctx.beginPath(); ctx.arc(bx,by,rad,0,Math.PI*2);
+      ctx.fillStyle = core; ctx.fill();
+    }
+  }
+  frame();
+})();
 </script>
 
 <!-- Game of Life grid art -->
