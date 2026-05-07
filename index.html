@@ -438,7 +438,7 @@
       to   { opacity: 1; transform: translateY(0); }
     }
 
-    canvas:not(#bg) {
+    canvas:not(#bg):not(#gravity-preview-canvas) {
       pointer-events: none !important;
       position: fixed !important;
       top: 0 !important;
@@ -446,6 +446,14 @@
       width: 100vw !important;
       height: 100vh !important;
       z-index: 9999 !important;
+    }
+
+    #gravity-preview-canvas {
+      position: absolute !important;
+      top: 0; left: 0;
+      width: 100% !important;
+      height: 100% !important;
+      z-index: 1;
     }
   </style>
 </head>
@@ -895,22 +903,23 @@ window.addEventListener('resize', () => {
   const cvs = document.getElementById('gravity-preview-canvas');
   if (!cvs) return;
   const ctx = cvs.getContext('2d');
-  let W, H;
+  let W = 320, H = 200;
+
+  // Defer sizing until layout is done
   function resize() {
     const rect = cvs.parentElement.getBoundingClientRect();
-    W = cvs.width  = rect.width  || 320;
-    H = cvs.height = rect.height || 200;
+    if (rect.width > 0) { W = cvs.width = rect.width; H = cvs.height = rect.height; }
   }
-  resize();
-  window.addEventListener('resize', resize);
+  requestAnimationFrame(() => { resize(); window.addEventListener('resize', resize); });
 
-  const G = 1, SOFT = 800, TRAIL = 0.14, WARP = 18000;
-  const bodies = [
-    { x: 0, y: 0, vx: 0,    vy: 0,    mass: 500 },
-    { x: 90, y: 0, vx: 0,   vy: -2.4, mass: 18  },
-    { x: -65, y: 0, vx: 0,  vy:  2.9, mass: 10  },
-    { x: 130, y: -20, vx: 0.5, vy: -1.8, mass: 8 },
-  ];
+  const G = 1, SOFT = 800, TRAIL = 0.14, WARP = 18000, GRID = 22;
+  const Y_SQ = 0.44, X_PR = 0.22;
+
+  function toS(wx, wy) {
+    const yf = wy / Math.max(H * 0.5, 1);
+    const xs = 1 + yf * X_PR;
+    return { x: W*0.5 + wx*xs, y: H*0.52 + wy*Y_SQ, s: Math.max(0.55, xs) };
+  }
 
   function massToColor(m) {
     if (m < 40)  return [160,200,255];
@@ -920,47 +929,52 @@ window.addEventListener('resize', () => {
     return [220,60,40];
   }
 
+  // Bodies in world coords
+  const bodies = [
+    { x:0,  y:0,   vx:0,    vy:0,    mass:420 },
+    { x:72, y:0,   vx:0,    vy:-2.4, mass:16  },
+    { x:-52,y:0,   vx:0,    vy:2.8,  mass:10  },
+    { x:105,y:-15, vx:0.4,  vy:-1.7, mass:8   },
+  ];
+
   function step() {
     const n = bodies.length;
     const ax = new Array(n).fill(0), ay = new Array(n).fill(0);
     for (let i = 0; i < n; i++) {
       for (let j = i+1; j < n; j++) {
         const dx = bodies[j].x - bodies[i].x, dy = bodies[j].y - bodies[i].y;
-        const f = G * bodies[i].mass * bodies[j].mass / (dx*dx + dy*dy + SOFT);
-        const d = Math.sqrt(dx*dx + dy*dy) || 1;
-        const fx = f * dx/d, fy = f * dy/d;
+        const d  = Math.sqrt(dx*dx + dy*dy) || 1;
+        const f  = G * bodies[i].mass * bodies[j].mass / (d*d + SOFT);
+        const fx = f*dx/d, fy = f*dy/d;
         ax[i] += fx/bodies[i].mass; ay[i] += fy/bodies[i].mass;
         ax[j] -= fx/bodies[j].mass; ay[j] -= fy/bodies[j].mass;
       }
     }
-    for (let i = 0; i < n; i++) {
-      bodies[i].vx += ax[i]; bodies[i].vy += ay[i];
-      bodies[i].x  += bodies[i].vx; bodies[i].y  += bodies[i].vy;
-    }
+    bodies.forEach((b,i) => { b.vx += ax[i]; b.vy += ay[i]; b.x += b.vx; b.y += b.vy; });
   }
 
-  function drawGrid(cx, cy) {
-    const step = 30, cols = Math.ceil(W/step)+2, rows = Math.ceil(H/step)+2;
+  function drawGrid() {
+    const gW = W*0.7, gH = H*0.7;
+    const cols = Math.ceil(gW*2/GRID)+2, rows = Math.ceil(gH*2/GRID)+2;
     const pts = [];
     for (let r = 0; r <= rows; r++) {
       pts[r] = [];
       for (let c = 0; c <= cols; c++) {
-        const bx = (c-0.5)*step - (W/2 - cx), by = (r-0.5)*step - (H/2 - cy);
+        const gwx = -gW - GRID + c*GRID, gwy = -gH - GRID + r*GRID;
         let dx = 0, dy = 0;
         for (const b of bodies) {
-          const ex = (b.x + cx) - bx, ey = (b.y + cy) - by;
+          const ex = b.x-gwx, ey = b.y-gwy;
           const d2 = ex*ex + ey*ey + SOFT*2;
-          const str = Math.min(20, b.mass * WARP * 0.4 / (d2 * Math.sqrt(d2)));
+          const str = Math.min(18, b.mass*WARP*0.35/(d2*Math.sqrt(d2)));
           dx += ex*str; dy += ey*str;
         }
-        const dLen = Math.sqrt(dx*dx+dy*dy);
-        if (dLen > 20) { dx=dx/dLen*20; dy=dy/dLen*20; }
-        pts[r][c] = { x: bx+dx, y: by+dy };
+        const dL = Math.sqrt(dx*dx+dy*dy);
+        if (dL > 18) { dx=dx/dL*18; dy=dy/dL*18; }
+        pts[r][c] = toS(gwx+dx, gwy+dy);
       }
     }
     ctx.strokeStyle = 'rgba(120,50,220,0.18)';
-    ctx.lineWidth = 0.6;
-    ctx.beginPath();
+    ctx.lineWidth = 0.6; ctx.beginPath();
     for (let r = 0; r <= rows; r++) {
       ctx.moveTo(pts[r][0].x, pts[r][0].y);
       for (let c = 1; c <= cols; c++) ctx.lineTo(pts[r][c].x, pts[r][c].y);
@@ -975,25 +989,24 @@ window.addEventListener('resize', () => {
   function frame() {
     requestAnimationFrame(frame);
     if (!document.contains(cvs)) return;
-    const cx = W/2, cy = H/2;
     ctx.fillStyle = `rgba(3,0,10,${TRAIL})`;
     ctx.fillRect(0, 0, W, H);
     step();
-    drawGrid(cx, cy);
+    drawGrid();
     for (const b of bodies) {
       const [r,g,bl] = massToColor(b.mass);
-      const rad = Math.cbrt(b.mass) * 1.8;
-      const bx = b.x + cx, by = b.y + cy;
-      const glow = ctx.createRadialGradient(bx,by,0,bx,by,rad*3);
+      const { x:sx, y:sy, s:ds } = toS(b.x, b.y);
+      const rad = Math.cbrt(b.mass) * 1.8 * ds;
+      const glow = ctx.createRadialGradient(sx,sy,0,sx,sy,rad*3.2);
       glow.addColorStop(0, `rgba(${r},${g},${bl},0.5)`);
       glow.addColorStop(1, `rgba(${r},${g},${bl},0)`);
-      ctx.beginPath(); ctx.arc(bx,by,rad*3,0,Math.PI*2);
+      ctx.beginPath(); ctx.arc(sx,sy,rad*3.2,0,Math.PI*2);
       ctx.fillStyle = glow; ctx.fill();
-      const core = ctx.createRadialGradient(bx-rad*0.3,by-rad*0.3,0,bx,by,rad);
+      const core = ctx.createRadialGradient(sx-rad*0.3,sy-rad*0.3,0,sx,sy,rad);
       core.addColorStop(0, 'rgba(255,255,255,0.95)');
       core.addColorStop(0.4, `rgba(${r},${g},${bl},0.9)`);
       core.addColorStop(1, `rgba(${Math.round(r*0.6)},${Math.round(g*0.6)},${Math.round(bl*0.6)},0.8)`);
-      ctx.beginPath(); ctx.arc(bx,by,rad,0,Math.PI*2);
+      ctx.beginPath(); ctx.arc(sx,sy,rad,0,Math.PI*2);
       ctx.fillStyle = core; ctx.fill();
     }
   }
